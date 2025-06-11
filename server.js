@@ -14,7 +14,15 @@ dotenv.config();
 connectDB()
 
 const app = express();
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:3000",
+    "https://ecommerce-project-frontend-beta.vercel.app",
+    "https://ecommerce-project-frontend-git-main-nithins-projects-19efe843.vercel.app",
+    "https://ecommerce-project-frontend-hbj1n26js-nithins-projects-19efe843.vercel.app"
+  ],
+  credentials: true
+}));
 
 app.use(express.json());
 
