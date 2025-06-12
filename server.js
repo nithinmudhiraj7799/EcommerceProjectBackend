@@ -16,8 +16,9 @@ connectDB()
 const app = express();
 
 const allowedOrigins = [
+      "https://ecommerce-project-frontend-beta.vercel.app",
   "http://localhost:5173",
-  "https://ecommerce-project-frontend-beta.vercel.app",
+
 ];
 
 app.use(cors({
