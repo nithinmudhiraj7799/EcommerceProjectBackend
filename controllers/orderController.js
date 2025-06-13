@@ -1,43 +1,73 @@
 const Order = require("../models/Order");
-
-// Create a new order
+const Product = require("../models/Product");
+const Address = require("../models/Address");
+const { sendOrderSuccessEmail } = require("../services/emailService");
+const { generateInvoicePDF } = require("../utils/pdfGenerator");
 
 const placeOrder = async (req, res) => {
-  const { items, address } = req.body;
-
   try {
-    if (!items || items.length === 0) {
-      return res.status(400).json({ message: "No items provided" });
+    const { items, address: addressId } = req.body;
+    const userId = req.user._id;
+
+    // ✅ Validate address
+    const addressExists = await Address.findById(addressId);
+    if (!addressExists) {
+      return res.status(400).json({ message: "Invalid address ID" });
     }
 
-    if (!address) {
-      return res.status(400).json({ message: "Address is required" });
-    }
+    // ✅ Validate items and build properly
+    const validatedItems = await Promise.all(
+      items.map(async (item) => {
+        const product = await Product.findById(item.product);
+        if (!product) throw new Error(`Product not found: ${item.product}`);
+        return {
+          product: product._id, // store as ref
+          quantity: item.quantity,
+        };
+      })
+    );
 
-    const order = new Order({
-      user: req.user._id,
-      items,
-      address,
+    // ✅ Create and save order
+    const newOrder = await Order.create({
+      user: userId,
+      items: validatedItems,
+      address: addressId,
     });
 
-    const savedOrder = await order.save();
+    // ✅ Populate the order with user, product, and address info
+    const populatedOrder = await Order.findById(newOrder._id)
+      .populate("items.product")
+      .populate("address")
+      .populate("user", "email");
 
-    res.status(201).json(savedOrder);
+    console.log("✅ Populated Email:", populatedOrder?.user?.email);
+
+    // ✅ Generate PDF
+    const fileName = `invoice-${populatedOrder._id}.pdf`;
+    await generateInvoicePDF(populatedOrder, fileName);
+
+    // ✅ Send Email
+    await sendOrderSuccessEmail(populatedOrder.user.email, populatedOrder);
+
+    res.status(201).json({
+      message: "Order placed and email sent",
+      order: populatedOrder,
+    });
+
   } catch (error) {
-    console.error("❌ Order Save Error:", error.message);
-    res.status(500).json({ message: error.message });
+    console.error("❌ Order placement failed:", error);
+    res.status(500).json({ message: "Order failed", error: error.message });
   }
 };
 
 
-// Update order status (admin only)
+// ✅ Update order status (admin only)
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const orderId = req.params.id;
 
     const order = await Order.findById(orderId);
-
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -47,37 +77,41 @@ const updateOrderStatus = async (req, res) => {
 
     res.json({ message: "Order status updated", order });
   } catch (error) {
-    console.error(" Error updating status:", error.message);
-    res.status(500).json({ message: error.message });
+    console.error("❌ Error updating status:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-
-// Get logged-in user's orders
+// ✅ Get logged-in user's orders
 const getMyOrders = async (req, res) => {
   try {
-        console.log("Authenticated user:", req.user); // Add this line
-
     const orders = await Order.find({ user: req.user._id })
-      .populate("items.product")
-      .populate("address"); 
+      .populate("items.product"); // only if it's a ref
+
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ Error fetching user orders:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-// Get all orders (admin)
+// ✅ Get all orders (admin only)
 const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find({})
       .populate("user", "name email")
-      .populate("items.product")
-      .populate("address");  
+      .populate("items.product"); // only if product is a ref
+
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ Error fetching all orders:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-module.exports = { placeOrder, getMyOrders, getAllOrders ,updateOrderStatus};
+module.exports = {
+  placeOrder,
+  getMyOrders,
+  getAllOrders,
+  updateOrderStatus,
+};
