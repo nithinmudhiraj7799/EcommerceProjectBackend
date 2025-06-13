@@ -14,7 +14,7 @@ const createProduct = async (req, res) => {
 
     const { name, description, price, category, countInStock } = req.body;
 
-    const image = req.file?.path; // Cloudinary URL
+    const image = req.file?.path;
 
     const product = new Product({
       name,
@@ -56,7 +56,7 @@ const createProduct = async (req, res) => {
 //     res.status(500).json({ message: error.message });
 //   }
 // };
-
+  
 
 // Get all products
 const getAllProducts = async (req, res) => {

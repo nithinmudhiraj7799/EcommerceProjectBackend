@@ -59,7 +59,7 @@ const loginUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user.email,user._id),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
